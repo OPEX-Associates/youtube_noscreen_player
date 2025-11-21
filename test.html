@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test YouTube Audio Player</title>
+</head>
+<body>
+    <h1>Test YouTube Audio Player Functions</h1>
+    <div id="test-results"></div>
+    
+    <script>
+        // Test functions
+        function extractVideoId(url) {
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\n?#]+)/
+            ];
+            
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) {
+                    return match[1];
+                }
+            }
+            return null;
+        }
+
+        function isValidYouTubeUrl(url) {
+            const patterns = [
+                /^https?:\/\/(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/,
+                /^https?:\/\/(www\.)?youtube\.com\/embed\//
+            ];
+            return patterns.some(pattern => pattern.test(url));
+        }
+
+        // Test cases
+        const testUrls = [
+            'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+            'https://youtu.be/dQw4w9WgXcQ',
+            'https://youtube.com/shorts/abc123',
+            'https://www.youtube.com/embed/dQw4w9WgXcQ',
+            'invalid-url'
+        ];
+
+        const resultsDiv = document.getElementById('test-results');
+        
+        testUrls.forEach(url => {
+            const isValid = isValidYouTubeUrl(url);
+            const videoId = extractVideoId(url);
+            
+            resultsDiv.innerHTML += `
+                <div style="margin: 10px 0; padding: 10px; border: 1px solid #ccc;">
+                    <strong>URL:</strong> ${url}<br>
+                    <strong>Valid:</strong> ${isValid}<br>
+                    <strong>Video ID:</strong> ${videoId || 'None'}
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>

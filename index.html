@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="YouTube Audio Player - Play YouTube videos as audio only with queue support">
+    <meta name="theme-color" content="#ff0000">
+    <title>YouTube Audio Player</title>
+    
+    <!-- PWA Configuration -->
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" type="image/png" sizes="192x192" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik03Ni44IDYwLjhMMTI1LjIgOTZMNzYuOCAxMzEuMlY2MC44WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik03Ni44IDYwLjhMMTI1LjIgOTZMNzYuOCAxMzEuMlY2MC44WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 YouTube Audio Player</h1>
+            <p>Play YouTube videos as audio-only with queue support</p>
+        </header>
+
+        <!-- URL Input Section -->
+        <section class="input-section">
+            <div class="input-group">
+                <input 
+                    type="url" 
+                    id="youtube-url" 
+                    placeholder="Paste YouTube URL here..."
+                    aria-label="YouTube URL input"
+                >
+                <button id="add-to-queue" type="button" aria-label="Add to queue">
+                    Add to Queue
+                </button>
+            </div>
+            <div class="url-examples">
+                <small>
+                    Examples: youtube.com/watch?v=..., youtu.be/..., youtube.com/shorts/...
+                </small>
+            </div>
+        </section>
+
+        <!-- Audio Player Section -->
+        <section class="player-section">
+            <div class="now-playing">
+                <h3 id="current-title">No audio selected</h3>
+                <p id="current-channel">Select a video from the queue</p>
+            </div>
+            
+            <audio id="audio-player" controls preload="none">
+                Your browser does not support the audio element.
+            </audio>
+            
+            <div class="player-controls">
+                <button id="prev-btn" type="button" aria-label="Previous track">⏮️</button>
+                <button id="play-pause-btn" type="button" aria-label="Play/Pause">▶️</button>
+                <button id="next-btn" type="button" aria-label="Next track">⏭️</button>
+                <button id="shuffle-btn" type="button" aria-label="Shuffle" class="shuffle-off">🔀</button>
+                <button id="repeat-btn" type="button" aria-label="Repeat" class="repeat-off">🔁</button>
+            </div>
+            
+            <div class="progress-section">
+                <span id="current-time">0:00</span>
+                <input type="range" id="progress-bar" min="0" max="100" value="0" step="0.1">
+                <span id="duration">0:00</span>
+            </div>
+        </section>
+
+        <!-- Queue Section -->
+        <section class="queue-section">
+            <div class="queue-header">
+                <h3>Queue (<span id="queue-count">0</span>)</h3>
+                <button id="clear-queue" type="button">Clear All</button>
+            </div>
+            
+            <div id="queue-list" class="queue-list">
+                <div class="queue-empty">
+                    <p>Queue is empty</p>
+                    <p>Add YouTube videos using the input above</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Status Messages -->
+        <div id="status-message" class="status-message" role="alert" aria-live="polite"></div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Extracting audio...</p>
+        </div>
+    </div>
+
+    <!-- Install PWA Banner -->
+    <div id="install-banner" class="install-banner hidden">
+        <p>Install this app for the best experience!</p>
+        <button id="install-btn">Install</button>
+        <button id="dismiss-install">Dismiss</button>
+    </div>
+
+    <!-- Scripts -->
+    <script src="app.js?v=2"></script>
+    
+    <!-- PWA Installation -->
+    <script>
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js?v=2')
+                    .then(registration => {
+                        console.log('SW registered: ', registration);
+                        // Force update if there's a waiting service worker
+                        if (registration.waiting) {
+                            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                    })
+                    .catch(registrationError => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+
+        // PWA Install prompt
+        let deferredPrompt;
+        const installBanner = document.getElementById('install-banner');
+        const installBtn = document.getElementById('install-btn');
+        const dismissBtn = document.getElementById('dismiss-install');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBanner.classList.remove('hidden');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                console.log(`User response to the install prompt: ${outcome}`);
+                deferredPrompt = null;
+                installBanner.classList.add('hidden');
+            }
+        });
+
+        dismissBtn.addEventListener('click', () => {
+            installBanner.classList.add('hidden');
+        });
+
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('App was installed.');
+            installBanner.classList.add('hidden');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+{
+  "name": "YouTube Audio Player",
+  "short_name": "YT Audio",
+  "description": "Play YouTube videos as audio-only with queue support",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff0000",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "categories": ["music", "entertainment", "utilities"],
+  "lang": "en-US",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNzIiIGhlaWdodD0iNzIiIHZpZXdCb3g9IjAgMCA3MiA3MiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjcyIiBoZWlnaHQ9IjcyIiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik0yOC44IDIyLjhMNDcuMiAzNkwyOC44IDQ5LjJWMjIuOFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==",
+      "sizes": "72x72",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCA5NiA5NiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik0zOC40IDMwLjRMNjIuNCA0OEwzOC40IDY1LjZWMzAuNFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==",
+      "sizes": "96x96",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTI4IiBoZWlnaHQ9IjEyOCIgdmlld0JveD0iMCAwIDEyOCAxMjgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMjgiIGhlaWdodD0iMTI4IiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik01MS4yIDQwLjhMODMuMiA2NEw1MS4yIDg3LjJWNDAuOFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==",
+      "sizes": "128x128",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTQ0IiBoZWlnaHQ9IjE0NCIgdmlld0JveD0iMCAwIDE0NCAxNDQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNDQiIGhlaWdodD0iMTQ0IiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik01Ny42IDQ1LjZMOTMuNiA3Mkw1Ny42IDk4LjRWNDUuNloiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==",
+      "sizes": "144x144",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUyIiBoZWlnaHQ9IjE1MiIgdmlld0JveD0iMCAwIDE1MiAxNTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxNTIiIGhlaWdodD0iMTUyIiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik02MC44IDQ4TDk5LjIgNzZMNjAuOCAxMDRWNDhaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=",
+      "sizes": "152x152",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTkyIiBoZWlnaHQ9IjE5MiIgdmlld0JveD0iMCAwIDE5MiAxOTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik03Ni44IDYwLjhMMTI1LjIgOTZMNzYuOCAxMzEuMlY2MC44WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzg0IiBoZWlnaHQ9IjM4NCIgdmlld0JveD0iMCAwIDM4NCAzODQiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzODQiIGhlaWdodD0iMzg0IiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik0xNTMuNiAxMjEuNkwyNTAuNCAxOTJMMTUzLjYgMjYyLjRWMTIxLjZaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=",
+      "sizes": "384x384",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgdmlld0JveD0iMCAwIDUxMiA1MTIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjZmYwMDAwIi8+CjxwYXRoIGQ9Ik0yMDQuOCAxNjIuNEwzMzMuNiAyNTZMMjA0LjggMzQ5LjZWMTYyLjRaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4=",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Add New Audio",
+      "short_name": "Add",
+      "description": "Add a new YouTube video to the queue",
+      "url": "/?action=add",
+      "icons": [
+        {
+          "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iOTYiIGhlaWdodD0iOTYiIHZpZXdCb3g9IjAgMCA5NiA5NiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9Ijk2IiBoZWlnaHQ9Ijk2IiBmaWxsPSIjMDBhZTAwIi8+CjxwYXRoIGQ9Ik00MCAzMkg1NlY2NEg0MFYzMloiIGZpbGw9IndoaXRlIi8+CjxwYXRoIGQ9Ik0zMiA0MEg2NFY1NkgzMlY0MFoiIGZpbGw9IndoaXRlIi8+Cjwvc3ZnPg==",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjY0MCIgdmlld0JveD0iMCAwIDMyMCA2NDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIzMjAiIGhlaWdodD0iNjQwIiBmaWxsPSIjZmZmZmZmIi8+CjxyZWN0IHg9IjIwIiB5PSI2MCIgd2lkdGg9IjI4MCIgaGVpZ2h0PSI0MCIgZmlsbD0iI2Y1ZjVmNSIvPgo8cmVjdCB4PSIyMCIgeT0iMTIwIiB3aWR0aD0iMjgwIiBoZWlnaHQ9IjgwIiBmaWxsPSIjZjBmMGYwIi8+CjxyZWN0IHg9IjIwIiB5PSIyMjAiIHdpZHRoPSIyODAiIGhlaWdodD0iMzAwIiBmaWxsPSIjZmFmYWZhIi8+Cjx0ZXh0IHg9IjE2MCIgeT0iNDAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzMzMzMzMyI+WW91VHViZSBBdWRpbyBQbGF5ZXI8L3RleHQ+Cjx0ZXh0IHg9IjE2MCIgeT0iODUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxMiIgZmlsbD0iIzY2NjY2NiI+QWRkIFlvdVR1YmUgVVJMPC90ZXh0Pgo8L3N2Zz4=",
+      "sizes": "320x640",
+      "type": "image/svg+xml",
+      "form_factor": "narrow"
+    }
+  ]
+}
