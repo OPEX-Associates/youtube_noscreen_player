@@ -1,4 +1,5 @@
-const { execSync } = require('child_process');
+// Netlify serverless function for YouTube audio extraction
+// Uses Invidious API as a reliable method that doesn't require yt-dlp
 
 exports.handler = async (event, context) => {
   // Enable CORS
@@ -6,6 +7,7 @@ exports.handler = async (event, context) => {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Content-Type': 'application/json'
   };
 
   // Handle preflight requests
@@ -23,66 +25,126 @@ exports.handler = async (event, context) => {
     };
   }
   
-  try {
-    console.log('Extracting audio for:', videoId);
-    
-    // Use yt-dlp to get audio stream info
-    const command = `yt-dlp --dump-json --no-warnings "https://www.youtube.com/watch?v=${videoId}"`;
-    const output = execSync(command, { 
-      encoding: 'utf8', 
-      timeout: 30000,
-      maxBuffer: 1024 * 1024 * 10 // 10MB buffer
-    });
-    
-    const info = JSON.parse(output);
-    
-    // Find the best audio format (prefer OPUS)
-    const formats = info.formats || [];
-    const audioFormats = formats.filter(f => 
-      f.acodec && f.acodec !== 'none' && 
-      (!f.vcodec || f.vcodec === 'none') && f.url
-    );
-    
-    if (audioFormats.length === 0) {
-      return {
-        statusCode: 404,
-        headers,
-        body: JSON.stringify({ error: 'No audio formats found' })
-      };
+  console.log('Serverless function: Extracting audio for:', videoId);
+  
+  // Try multiple Invidious instances
+  const invidiousInstances = [
+    'https://iv.ggtyler.dev',
+    'https://invidious.fdn.fr',
+    'https://inv.riverside.rocks',
+    'https://invidious.sethforprivacy.com',
+    'https://invidious.tiekoetter.com',
+    'https://invidious.privacydev.net'
+  ];
+  
+  for (const instance of invidiousInstances) {
+    try {
+      console.log(`Trying Invidious instance: ${instance}`);
+      
+      const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(8000)
+      });
+      
+      if (!response.ok) {
+        console.log(`Invidious ${instance} returned ${response.status}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      // Find audio-only format
+      const audioFormats = data.adaptiveFormats?.filter(format => 
+        format.type && format.type.includes('audio') && format.url
+      ) || [];
+      
+      if (audioFormats.length > 0) {
+        // Prefer OPUS format
+        const opusFormat = audioFormats.find(f => f.type.includes('opus'));
+        const selectedFormat = opusFormat || audioFormats[0];
+        
+        console.log(`✅ Success with ${instance}`);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            audioUrl: selectedFormat.url,
+            format: selectedFormat.container || 'webm',
+            codec: selectedFormat.encoding || 'opus',
+            quality: selectedFormat.bitrate || 'unknown',
+            title: data.title,
+            duration: data.lengthSeconds,
+            uploader: data.author,
+            thumbnail: data.videoThumbnails?.[0]?.url
+          })
+        };
+      }
+      
+    } catch (error) {
+      console.log(`Invidious ${instance} failed:`, error.message);
+      continue;
     }
-    
-    // Prefer OPUS, then M4A, then WebM
-    const opusFormat = audioFormats.find(f => f.acodec && f.acodec.includes('opus'));
-    const m4aFormat = audioFormats.find(f => f.ext === 'm4a');
-    const webmFormat = audioFormats.find(f => f.ext === 'webm');
-    
-    const bestFormat = opusFormat || m4aFormat || webmFormat || audioFormats[0];
-    
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        audioUrl: bestFormat.url,
-        format: bestFormat.ext,
-        codec: bestFormat.acodec,
-        quality: bestFormat.abr || bestFormat.tbr || 'unknown',
-        title: info.title,
-        duration: info.duration,
-        uploader: info.uploader || info.channel,
-        thumbnail: info.thumbnail
-      })
-    };
-    
-  } catch (error) {
-    console.error('Extraction error:', error);
-    
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'Failed to extract audio',
-        details: error.message 
-      })
-    };
   }
+  
+  // If all Invidious instances fail, try Piped API
+  const pipedInstances = [
+    'https://pipedapi.kavin.rocks',
+    'https://api-piped.mha.fi'
+  ];
+  
+  for (const instance of pipedInstances) {
+    try {
+      console.log(`Trying Piped instance: ${instance}`);
+      
+      const response = await fetch(`${instance}/streams/${videoId}`, {
+        headers: { 'Accept': 'application/json' },
+        signal: AbortSignal.timeout(8000)
+      });
+      
+      if (!response.ok) continue;
+      
+      const data = await response.json();
+      const audioStreams = data.audioStreams?.filter(s => s.url && s.mimeType) || [];
+      
+      if (audioStreams.length > 0) {
+        const opusStream = audioStreams.find(s => s.mimeType.includes('opus'));
+        const selectedStream = opusStream || audioStreams[0];
+        
+        console.log(`✅ Success with Piped ${instance}`);
+        
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            audioUrl: selectedStream.url,
+            format: selectedStream.format || 'webm',
+            codec: selectedStream.codec || 'opus',
+            quality: selectedStream.bitrate || 'unknown',
+            title: data.title,
+            duration: data.duration,
+            uploader: data.uploader,
+            thumbnail: data.thumbnailUrl
+          })
+        };
+      }
+      
+    } catch (error) {
+      console.log(`Piped ${instance} failed:`, error.message);
+      continue;
+    }
+  }
+  
+  // All methods failed
+  console.error('All extraction methods failed for videoId:', videoId);
+  
+  return {
+    statusCode: 503,
+    headers,
+    body: JSON.stringify({ 
+      error: 'All audio extraction services are currently unavailable',
+      videoId: videoId,
+      message: 'Please try again later or check if the video exists'
+    })
+  };
 };

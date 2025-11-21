@@ -288,21 +288,34 @@ class YouTubeAudioPlayer {
         
         // Try different extraction methods based on deployment
         
-        // 1. Try serverless function (if deployed to Netlify/Vercel)
-        if (window.location.hostname !== 'localhost') {
-            try {
-                console.log('Trying serverless extraction...');
-                const response = await fetch(`/.netlify/functions/extract-audio?videoId=${videoId}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.audioUrl) {
-                        console.log('✅ Serverless extraction succeeded!');
-                        return data.audioUrl;
-                    }
+        // 1. Try serverless function (works for both Netlify and localhost with Netlify CLI)
+        try {
+            console.log('Trying serverless extraction...');
+            const functionUrl = `/.netlify/functions/extract-audio?videoId=${videoId}`;
+            console.log('Function URL:', functionUrl);
+            
+            const response = await fetch(functionUrl, {
+                headers: { 'Accept': 'application/json' }
+            });
+            
+            console.log('Serverless response status:', response.status);
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Serverless response data:', data);
+                
+                if (data.audioUrl) {
+                    console.log('✅ Serverless extraction succeeded!');
+                    return data.audioUrl;
+                } else {
+                    console.log('⚠️ Serverless responded but no audio URL:', data.error);
                 }
-            } catch (error) {
-                console.log('❌ Serverless extraction failed:', error.message);
+            } else {
+                const errorText = await response.text();
+                console.log('❌ Serverless returned error:', response.status, errorText);
             }
+        } catch (error) {
+            console.log('❌ Serverless extraction failed:', error.message);
         }
         
         // 2. Try local backend (for development)
