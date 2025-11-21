@@ -294,10 +294,16 @@ class YouTubeAudioPlayer {
             const functionUrl = `/.netlify/functions/extract-audio?videoId=${videoId}`;
             console.log('Function URL:', functionUrl);
             
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout
+            
             const response = await fetch(functionUrl, {
-                headers: { 'Accept': 'application/json' }
+                headers: { 'Accept': 'application/json' },
+                signal: controller.signal
             });
             
+            clearTimeout(timeoutId);
             console.log('Serverless response status:', response.status);
             
             if (response.ok) {
@@ -316,6 +322,9 @@ class YouTubeAudioPlayer {
             }
         } catch (error) {
             console.log('❌ Serverless extraction failed:', error.message);
+            if (error.name === 'AbortError') {
+                console.log('⚠️ Serverless function timed out - likely not deployed or taking too long');
+            }
         }
         
         // 2. Try local backend (for development)
@@ -385,24 +394,27 @@ class YouTubeAudioPlayer {
     }
 
     async tryInvidiousAPI(videoId) {
-        // Updated Invidious instances (as of 2025)
+        // Updated Invidious instances with CORS-friendly ones
         const instances = [
-            'https://iv.ggtyler.dev',
-            'https://invidious.fdn.fr',
-            'https://inv.riverside.rocks',
-            'https://invidious.sethforprivacy.com',
-            'https://invidious.tiekoetter.com'
+            'https://inv.nadeko.net',
+            'https://invidious.privacyredirect.com',
+            'https://y.com.sb',
+            'https://invidious.nerdvpn.de',
+            'https://inv.bp.projectsegfau.lt'
         ];
 
         for (const instance of instances) {
             try {
                 console.log(`Trying Invidious: ${instance}`);
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
                 
-                const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
+                const response = await fetch(`${instance}/api/v1/videos/${videoId}?fields=adaptiveFormats,title,author,lengthSeconds`, {
                     signal: controller.signal,
-                    headers: { 'Accept': 'application/json' }
+                    headers: { 
+                        'Accept': 'application/json'
+                    },
+                    mode: 'cors'
                 });
                 
                 clearTimeout(timeoutId);

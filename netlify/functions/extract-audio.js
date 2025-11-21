@@ -27,28 +27,31 @@ exports.handler = async (event, context) => {
   
   console.log('Serverless function: Extracting audio for:', videoId);
   
-  // Try multiple Invidious instances
+  // Try multiple Invidious instances (faster, CORS-friendly ones first)
   const invidiousInstances = [
+    'https://inv.nadeko.net',
+    'https://invidious.privacyredirect.com',
+    'https://y.com.sb',
+    'https://invidious.nerdvpn.de',
     'https://iv.ggtyler.dev',
-    'https://invidious.fdn.fr',
-    'https://inv.riverside.rocks',
-    'https://invidious.sethforprivacy.com',
-    'https://invidious.tiekoetter.com',
-    'https://invidious.privacydev.net'
+    'https://inv.bp.projectsegfau.lt'
   ];
   
-  for (const instance of invidiousInstances) {
+  // Try instances in parallel for faster response
+  const tryInstance = async (instance) => {
     try {
-      console.log(`Trying Invidious instance: ${instance}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
       
-      const response = await fetch(`${instance}/api/v1/videos/${videoId}`, {
+      const response = await fetch(`${instance}/api/v1/videos/${videoId}?fields=adaptiveFormats,title,author,lengthSeconds`, {
         headers: { 'Accept': 'application/json' },
-        signal: AbortSignal.timeout(8000)
+        signal: controller.signal
       });
       
+      clearTimeout(timeout);
+      
       if (!response.ok) {
-        console.log(`Invidious ${instance} returned ${response.status}`);
-        continue;
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
@@ -59,31 +62,57 @@ exports.handler = async (event, context) => {
       ) || [];
       
       if (audioFormats.length > 0) {
-        // Prefer OPUS format
         const opusFormat = audioFormats.find(f => f.type.includes('opus'));
         const selectedFormat = opusFormat || audioFormats[0];
         
         console.log(`✅ Success with ${instance}`);
         
         return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            audioUrl: selectedFormat.url,
-            format: selectedFormat.container || 'webm',
-            codec: selectedFormat.encoding || 'opus',
-            quality: selectedFormat.bitrate || 'unknown',
-            title: data.title,
-            duration: data.lengthSeconds,
-            uploader: data.author,
-            thumbnail: data.videoThumbnails?.[0]?.url
-          })
+          audioUrl: selectedFormat.url,
+          format: selectedFormat.container || 'webm',
+          codec: selectedFormat.encoding || 'opus',
+          quality: selectedFormat.bitrate || 'unknown',
+          title: data.title,
+          duration: data.lengthSeconds,
+          uploader: data.author,
+          thumbnail: data.videoThumbnails?.[0]?.url
         };
       }
       
+      throw new Error('No audio formats found');
+      
     } catch (error) {
       console.log(`Invidious ${instance} failed:`, error.message);
-      continue;
+      throw error;
+    }
+  };
+  
+  // Try first 3 instances in parallel
+  try {
+    const results = await Promise.race(
+      invidiousInstances.slice(0, 3).map(tryInstance)
+    );
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(results)
+    };
+  } catch (firstBatchError) {
+    console.log('First batch failed, trying remaining instances...');
+    
+    // Try remaining instances one by one
+    for (const instance of invidiousInstances.slice(3)) {
+      try {
+        const result = await tryInstance(instance);
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(result)
+        };
+      } catch (error) {
+        continue;
+      }
     }
   }
   
