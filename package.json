@@ -7,7 +7,7 @@
     "build": "npm install"
   },
   "dependencies": {
-    "ytdl-core": "^4.11.5"
+    "@distube/ytdl-core": "^4.14.4"
   },
   "devDependencies": {},
   "keywords": ["pwa", "youtube", "audio", "player"],

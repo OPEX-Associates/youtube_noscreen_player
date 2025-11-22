@@ -1,7 +1,7 @@
 // Netlify serverless function for YouTube audio extraction
-// Uses direct YouTube extraction with ytdl-core
+// Uses @distube/ytdl-core (actively maintained fork that bypasses YouTube blocks)
 
-const ytdl = require('ytdl-core');
+const ytdl = require('@distube/ytdl-core');
 
 exports.handler = async (event, context) => {
   // Enable CORS
