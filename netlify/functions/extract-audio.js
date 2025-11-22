@@ -27,14 +27,14 @@ exports.handler = async (event, context) => {
   
   console.log('Serverless function: Extracting audio for:', videoId);
   
-  // Try multiple Invidious instances (faster, CORS-friendly ones first)
+  // Try multiple Invidious instances (updated Nov 2025 - more reliable ones)
   const invidiousInstances = [
-    'https://inv.nadeko.net',
-    'https://invidious.privacyredirect.com',
-    'https://y.com.sb',
-    'https://invidious.nerdvpn.de',
-    'https://iv.ggtyler.dev',
-    'https://inv.bp.projectsegfau.lt'
+    'https://invidious.fdn.fr',
+    'https://iv.nboeck.de',
+    'https://invidious.projectsegfau.lt',
+    'https://yewtu.be',
+    'https://invidious.protokolla.fi',
+    'https://iv.melmac.space'
   ];
   
   // Try instances in parallel for faster response
@@ -119,6 +119,7 @@ exports.handler = async (event, context) => {
   // If all Invidious instances fail, try Piped API
   const pipedInstances = [
     'https://pipedapi.kavin.rocks',
+    'https://pipedapi-libre.kavin.rocks',
     'https://api-piped.mha.fi'
   ];
   
