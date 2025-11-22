@@ -1,7 +1,5 @@
 // Netlify serverless function for YouTube audio extraction
-// Uses @distube/ytdl-core (actively maintained fork that bypasses YouTube blocks)
-
-const ytdl = require('@distube/ytdl-core');
+// Uses Y2Mate API (reliable third-party service)
 
 exports.handler = async (event, context) => {
   // Enable CORS
@@ -29,44 +27,81 @@ exports.handler = async (event, context) => {
   
   console.log('Serverless function: Extracting audio for:', videoId);
   
+  // Try Y2Mate API
   try {
     const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
     
-    // Get video info and formats
-    const info = await ytdl.getInfo(videoUrl);
+    // Step 1: Analyze video
+    const analyzeResponse = await fetch('https://www.y2mate.com/mates/analyzeV2/ajax', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: `k_query=${encodeURIComponent(videoUrl)}&k_page=home&hl=en&q_auto=0`
+    });
     
-    // Find audio-only formats
-    const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
-    
-    if (audioFormats.length === 0) {
-      throw new Error('No audio formats found');
+    if (!analyzeResponse.ok) {
+      throw new Error(`Y2Mate analyze failed: ${analyzeResponse.status}`);
     }
     
-    // Prefer OPUS format
-    const opusFormat = audioFormats.find(f => f.audioCodec?.includes('opus'));
-    const selectedFormat = opusFormat || audioFormats[0];
+    const analyzeData = await analyzeResponse.json();
     
-    console.log(`✅ Successfully extracted audio - Format: ${selectedFormat.container}, Codec: ${selectedFormat.audioCodec}`);
+    if (analyzeData.status !== 'ok' || !analyzeData.links || !analyzeData.links.mp3) {
+      throw new Error('No audio formats available');
+    }
+    
+    // Find best quality audio (usually 128kbps)
+    const audioFormats = Object.entries(analyzeData.links.mp3);
+    const bestAudio = audioFormats.find(([key]) => key.includes('128')) || audioFormats[0];
+    
+    if (!bestAudio) {
+      throw new Error('No audio format found');
+    }
+    
+    const [quality, audioInfo] = bestAudio;
+    
+    // Step 2: Convert and get download link
+    const convertResponse = await fetch('https://www.y2mate.com/mates/convertV2/index', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: `vid=${analyzeData.vid}&k=${audioInfo.k}`
+    });
+    
+    if (!convertResponse.ok) {
+      throw new Error(`Y2Mate convert failed: ${convertResponse.status}`);
+    }
+    
+    const convertData = await convertResponse.json();
+    
+    if (convertData.status !== 'ok' || !convertData.dlink) {
+      throw new Error('Failed to get download link');
+    }
+    
+    console.log(`✅ Y2Mate extraction successful`);
     
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        audioUrl: selectedFormat.url,
-        format: selectedFormat.container,
-        codec: selectedFormat.audioCodec,
-        quality: selectedFormat.audioBitrate || 'unknown',
-        title: info.videoDetails.title,
-        duration: info.videoDetails.lengthSeconds,
-        uploader: info.videoDetails.author.name,
-        thumbnail: info.videoDetails.thumbnails[0]?.url
+        audioUrl: convertData.dlink,
+        format: 'mp3',
+        codec: 'mp3',
+        quality: quality,
+        title: analyzeData.title,
+        duration: analyzeData.t,
+        uploader: analyzeData.a || 'Unknown',
+        thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
       })
     };
     
-  } catch (error) {
-    console.error('ytdl-core extraction failed:', error.message);
+  } catch (y2mateError) {
+    console.error('Y2Mate failed:', y2mateError.message);
     
-    // Fallback to Invidious instances if ytdl-core fails
+    // Fallback to Invidious instances
     const invidiousInstances = [
       'https://invidious.fdn.fr',
       'https://iv.nboeck.de',
