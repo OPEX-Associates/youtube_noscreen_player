@@ -1,5 +1,7 @@
 // Netlify serverless function for YouTube audio extraction
-// Uses Invidious API as a reliable method that doesn't require yt-dlp
+// Uses direct YouTube extraction with ytdl-core
+
+const ytdl = require('ytdl-core');
 
 exports.handler = async (event, context) => {
   // Enable CORS
@@ -27,15 +29,52 @@ exports.handler = async (event, context) => {
   
   console.log('Serverless function: Extracting audio for:', videoId);
   
-  // Try multiple Invidious instances (updated Nov 2025 - more reliable ones)
-  const invidiousInstances = [
-    'https://invidious.fdn.fr',
-    'https://iv.nboeck.de',
-    'https://invidious.projectsegfau.lt',
-    'https://yewtu.be',
-    'https://invidious.protokolla.fi',
-    'https://iv.melmac.space'
-  ];
+  try {
+    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+    
+    // Get video info and formats
+    const info = await ytdl.getInfo(videoUrl);
+    
+    // Find audio-only formats
+    const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
+    
+    if (audioFormats.length === 0) {
+      throw new Error('No audio formats found');
+    }
+    
+    // Prefer OPUS format
+    const opusFormat = audioFormats.find(f => f.audioCodec?.includes('opus'));
+    const selectedFormat = opusFormat || audioFormats[0];
+    
+    console.log(`✅ Successfully extracted audio - Format: ${selectedFormat.container}, Codec: ${selectedFormat.audioCodec}`);
+    
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        audioUrl: selectedFormat.url,
+        format: selectedFormat.container,
+        codec: selectedFormat.audioCodec,
+        quality: selectedFormat.audioBitrate || 'unknown',
+        title: info.videoDetails.title,
+        duration: info.videoDetails.lengthSeconds,
+        uploader: info.videoDetails.author.name,
+        thumbnail: info.videoDetails.thumbnails[0]?.url
+      })
+    };
+    
+  } catch (error) {
+    console.error('ytdl-core extraction failed:', error.message);
+    
+    // Fallback to Invidious instances if ytdl-core fails
+    const invidiousInstances = [
+      'https://invidious.fdn.fr',
+      'https://iv.nboeck.de',
+      'https://invidious.projectsegfau.lt',
+      'https://yewtu.be',
+      'https://invidious.protokolla.fi',
+      'https://iv.melmac.space'
+    ];
   
   // Try instances in parallel for faster response
   const tryInstance = async (instance) => {
@@ -165,16 +204,17 @@ exports.handler = async (event, context) => {
     }
   }
   
-  // All methods failed
-  console.error('All extraction methods failed for videoId:', videoId);
-  
-  return {
-    statusCode: 503,
-    headers,
-    body: JSON.stringify({ 
-      error: 'All audio extraction services are currently unavailable',
-      videoId: videoId,
-      message: 'Please try again later or check if the video exists'
-    })
-  };
+    // All methods failed
+    console.error('All extraction methods failed for videoId:', videoId);
+    
+    return {
+      statusCode: 503,
+      headers,
+      body: JSON.stringify({ 
+        error: 'All audio extraction services are currently unavailable',
+        videoId: videoId,
+        message: 'Please try again later or check if the video exists'
+      })
+    };
+  }
 };
