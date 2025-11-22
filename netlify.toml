@@ -1,7 +1,13 @@
 [build]
-  # No build process needed for this static site
+  command = "npm install"
   publish = "."
   functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+  
+[functions."extract-audio"]
+  node_bundler = "esbuild"
   
 [[headers]]
   for = "/*"

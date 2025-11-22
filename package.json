@@ -1,0 +1,16 @@
+{
+  "name": "youtube-noscreen-player",
+  "version": "1.0.0",
+  "description": "PWA for playing YouTube audio without screen",
+  "main": "index.html",
+  "scripts": {
+    "build": "npm install"
+  },
+  "dependencies": {
+    "ytdl-core": "^4.11.5"
+  },
+  "devDependencies": {},
+  "keywords": ["pwa", "youtube", "audio", "player"],
+  "author": "",
+  "license": "MIT"
+}
