@@ -27,79 +27,52 @@ exports.handler = async (event, context) => {
   
   console.log('Serverless function: Extracting audio for:', videoId);
   
-  // Try Y2Mate API
+  // Try Cobalt API - modern, reliable YouTube downloader
   try {
-    const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-    
-    // Step 1: Analyze video
-    const analyzeResponse = await fetch('https://www.y2mate.com/mates/analyzeV2/ajax', {
+    const cobaltResponse = await fetch('https://api.cobalt.tools/api/json', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
       },
-      body: `k_query=${encodeURIComponent(videoUrl)}&k_page=home&hl=en&q_auto=0`
+      body: JSON.stringify({
+        url: `https://www.youtube.com/watch?v=${videoId}`,
+        vCodec: 'h264',
+        vQuality: '720',
+        aFormat: 'mp3',
+        isAudioOnly: true
+      })
     });
     
-    if (!analyzeResponse.ok) {
-      throw new Error(`Y2Mate analyze failed: ${analyzeResponse.status}`);
+    if (!cobaltResponse.ok) {
+      throw new Error(`Cobalt API failed: ${cobaltResponse.status}`);
     }
     
-    const analyzeData = await analyzeResponse.json();
+    const cobaltData = await cobaltResponse.json();
     
-    if (analyzeData.status !== 'ok' || !analyzeData.links || !analyzeData.links.mp3) {
-      throw new Error('No audio formats available');
+    if (cobaltData.status === 'error' || !cobaltData.url) {
+      throw new Error(cobaltData.text || 'No audio URL returned');
     }
     
-    // Find best quality audio (usually 128kbps)
-    const audioFormats = Object.entries(analyzeData.links.mp3);
-    const bestAudio = audioFormats.find(([key]) => key.includes('128')) || audioFormats[0];
-    
-    if (!bestAudio) {
-      throw new Error('No audio format found');
-    }
-    
-    const [quality, audioInfo] = bestAudio;
-    
-    // Step 2: Convert and get download link
-    const convertResponse = await fetch('https://www.y2mate.com/mates/convertV2/index', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      },
-      body: `vid=${analyzeData.vid}&k=${audioInfo.k}`
-    });
-    
-    if (!convertResponse.ok) {
-      throw new Error(`Y2Mate convert failed: ${convertResponse.status}`);
-    }
-    
-    const convertData = await convertResponse.json();
-    
-    if (convertData.status !== 'ok' || !convertData.dlink) {
-      throw new Error('Failed to get download link');
-    }
-    
-    console.log(`✅ Y2Mate extraction successful`);
+    console.log(`✅ Cobalt API extraction successful`);
     
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        audioUrl: convertData.dlink,
+        audioUrl: cobaltData.url,
         format: 'mp3',
         codec: 'mp3',
-        quality: quality,
-        title: analyzeData.title,
-        duration: analyzeData.t,
-        uploader: analyzeData.a || 'Unknown',
+        quality: '128kbps',
+        title: `YouTube Video ${videoId}`,
+        duration: 'unknown',
+        uploader: 'Unknown',
         thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
       })
     };
     
-  } catch (y2mateError) {
-    console.error('Y2Mate failed:', y2mateError.message);
+  } catch (cobaltError) {
+    console.error('Cobalt API failed:', cobaltError.message);
     
     // Fallback to Invidious instances
     const invidiousInstances = [
