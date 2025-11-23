@@ -15,28 +15,62 @@ $allowedOrigins = [
 
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 
-// Check if request is from allowed origin
-$originAllowed = false;
-foreach ($allowedOrigins as $allowed) {
-    if ($origin === $allowed) {
-        $originAllowed = true;
-        break;
+// If no origin header, check if it's a same-origin request
+if (empty($origin)) {
+    // Same-origin requests (test.html on same domain) don't send Origin header
+    // Check referer or host instead
+    $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+    $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+    
+    // Allow if referer or host matches any allowed origin
+    $originAllowed = false;
+    foreach ($allowedOrigins as $allowed) {
+        $allowedHost = parse_url($allowed, PHP_URL_HOST);
+        if (strpos($referer, $allowedHost) !== false || $host === $allowedHost) {
+            $origin = $allowed; // Set origin for CORS header
+            $originAllowed = true;
+            break;
+        }
     }
-}
-
-// If no origin header (direct browser access) or not allowed, deny
-if (empty($origin) || !$originAllowed) {
-    header('HTTP/1.1 403 Forbidden');
-    header('Content-Type: application/json');
-    echo json_encode([
-        'error' => 'Access denied',
-        'message' => 'This API can only be accessed from authorized domains',
-        'debug' => [
-            'receivedOrigin' => $origin,
-            'allowedOrigins' => $allowedOrigins
-        ]
-    ]);
-    exit;
+    
+    if (!$originAllowed) {
+        header('HTTP/1.1 403 Forbidden');
+        header('Content-Type: application/json');
+        echo json_encode([
+            'error' => 'Access denied',
+            'message' => 'This API can only be accessed from authorized domains',
+            'debug' => [
+                'receivedOrigin' => '',
+                'referer' => $referer,
+                'host' => $host,
+                'allowedOrigins' => $allowedOrigins
+            ]
+        ]);
+        exit;
+    }
+} else {
+    // Check if origin is in allowed list
+    $originAllowed = false;
+    foreach ($allowedOrigins as $allowed) {
+        if ($origin === $allowed) {
+            $originAllowed = true;
+            break;
+        }
+    }
+    
+    if (!$originAllowed) {
+        header('HTTP/1.1 403 Forbidden');
+        header('Content-Type: application/json');
+        echo json_encode([
+            'error' => 'Access denied',
+            'message' => 'This API can only be accessed from authorized domains',
+            'debug' => [
+                'receivedOrigin' => $origin,
+                'allowedOrigins' => $allowedOrigins
+            ]
+        ]);
+        exit;
+    }
 }
 
 // Set CORS headers for the allowed origin

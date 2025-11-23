@@ -13,19 +13,42 @@ $allowedOrigins = [
 
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 
-$originAllowed = false;
-foreach ($allowedOrigins as $allowed) {
-    if ($origin === $allowed) {
-        $originAllowed = true;
-        break;
+// If no origin header, check if it's a same-origin request
+if (empty($origin)) {
+    $referer = isset($_SERVER['HTTP_REFERER']) ? $_SERVER['HTTP_REFERER'] : '';
+    $host = isset($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : '';
+    
+    $originAllowed = false;
+    foreach ($allowedOrigins as $allowed) {
+        $allowedHost = parse_url($allowed, PHP_URL_HOST);
+        if (strpos($referer, $allowedHost) !== false || $host === $allowedHost) {
+            $origin = $allowed;
+            $originAllowed = true;
+            break;
+        }
     }
-}
-
-if (empty($origin) || !$originAllowed) {
-    header('HTTP/1.1 403 Forbidden');
-    header('Content-Type: application/json');
-    echo json_encode(['error' => 'Access denied', 'receivedOrigin' => $origin]);
-    exit;
+    
+    if (!$originAllowed) {
+        header('HTTP/1.1 403 Forbidden');
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Access denied', 'host' => $host, 'referer' => $referer]);
+        exit;
+    }
+} else {
+    $originAllowed = false;
+    foreach ($allowedOrigins as $allowed) {
+        if ($origin === $allowed) {
+            $originAllowed = true;
+            break;
+        }
+    }
+    
+    if (!$originAllowed) {
+        header('HTTP/1.1 403 Forbidden');
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Access denied', 'receivedOrigin' => $origin]);
+        exit;
+    }
 }
 
 header("Access-Control-Allow-Origin: $origin");
