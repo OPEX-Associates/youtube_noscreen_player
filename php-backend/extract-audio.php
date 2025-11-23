@@ -327,10 +327,16 @@ function extractViaYouTubeAndroidAPI($videoId) {
             return ['success' => false, 'error' => "YouTube API returned HTTP $httpCode"];
         }
         
+        // Decompress if gzipped
+        if (function_exists('gzdecode') && substr($response, 0, 2) === "\x1f\x8b") {
+            $response = gzdecode($response);
+        }
+        
         $data = json_decode($response, true);
         
         if (!$data) {
-            return ['success' => false, 'error' => 'Failed to parse YouTube response'];
+            $jsonError = json_last_error_msg();
+            return ['success' => false, 'error' => "JSON parse error: $jsonError", 'preview' => substr($response, 0, 200)];
         }
         
         // Check playability
@@ -388,54 +394,85 @@ function extractViaYouTubeAndroidAPI($videoId) {
 }
 
 /**
- * Extract audio using YouTube embed player (simple method)
+ * Extract audio using YouTube iOS client (another reliable method)
  */
-function extractViaYouTubeEmbed($videoId) {
+function extractViaYouTubeiOS($videoId) {
     try {
-        $url = "https://www.youtube.com/get_video_info?video_id=$videoId&el=embedded";
+        $url = "https://www.youtube.com/youtubei/v1/player?key=AIzaSyB-63vPrdThhKuerbB2N_l7Kwwcxj6yUAc&prettyPrint=false";
+        
+        $postData = json_encode([
+            'videoId' => $videoId,
+            'context' => [
+                'client' => [
+                    'clientName' => 'IOS',
+                    'clientVersion' => '19.09.3',
+                    'deviceModel' => 'iPhone14,3',
+                    'hl' => 'en',
+                    'gl' => 'US',
+                    'utcOffsetMinutes' => 0
+                ]
+            ],
+            'playbackContext' => [
+                'contentPlaybackContext' => [
+                    'html5Preference' => 'HTML5_PREF_WANTS'
+                ]
+            ]
+        ]);
         
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'Content-Type: application/json',
+            'User-Agent: com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)',
+            'X-YouTube-Client-Name: 5',
+            'X-YouTube-Client-Version: 19.09.3'
         ]);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_ENCODING, ''); // Accept all encodings
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
+        
+        if (!empty($curlError)) {
+            return ['success' => false, 'error' => "cURL error: $curlError"];
+        }
         
         if ($httpCode !== 200 || empty($response)) {
             return ['success' => false, 'error' => "HTTP $httpCode"];
         }
         
-        parse_str($response, $data);
+        $data = json_decode($response, true);
         
-        if (isset($data['status']) && $data['status'] === 'fail') {
-            return ['success' => false, 'error' => $data['reason'] ?? 'Video unavailable'];
+        if (!$data) {
+            return ['success' => false, 'error' => 'JSON parse failed: ' . json_last_error_msg()];
         }
         
-        if (!isset($data['player_response'])) {
-            return ['success' => false, 'error' => 'No player response'];
+        // Check playability
+        if (isset($data['playabilityStatus']['status']) && $data['playabilityStatus']['status'] !== 'OK') {
+            $reason = $data['playabilityStatus']['reason'] ?? 'Unknown';
+            return ['success' => false, 'error' => "Not playable: $reason"];
         }
         
-        $playerResponse = json_decode($data['player_response'], true);
-        
-        if (!isset($playerResponse['streamingData']['adaptiveFormats'])) {
-            return ['success' => false, 'error' => 'No formats available'];
+        if (!isset($data['streamingData']['adaptiveFormats'])) {
+            return ['success' => false, 'error' => 'No streaming data'];
         }
         
         // Find audio-only formats
-        $audioFormats = array_filter($playerResponse['streamingData']['adaptiveFormats'], function($format) {
+        $audioFormats = array_filter($data['streamingData']['adaptiveFormats'], function($format) {
             return isset($format['mimeType']) && 
                    strpos($format['mimeType'], 'audio') !== false && 
                    isset($format['url']);
         });
         
         if (empty($audioFormats)) {
-            return ['success' => false, 'error' => 'No audio URLs found'];
+            return ['success' => false, 'error' => 'No audio formats with URLs'];
         }
         
         // Prefer OPUS
@@ -451,7 +488,7 @@ function extractViaYouTubeEmbed($videoId) {
             $selectedFormat = reset($audioFormats);
         }
         
-        $videoDetails = $playerResponse['videoDetails'] ?? [];
+        $videoDetails = $data['videoDetails'] ?? [];
         
         return [
             'success' => true,
@@ -463,7 +500,7 @@ function extractViaYouTubeEmbed($videoId) {
             'duration' => $videoDetails['lengthSeconds'] ?? 0,
             'uploader' => $videoDetails['author'] ?? 'Unknown',
             'thumbnail' => "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
-            'source' => 'YouTube Embed'
+            'source' => 'YouTube iOS'
         ];
         
     } catch (Exception $e) {
@@ -484,15 +521,15 @@ if ($result['success']) {
 }
 $allErrors['Android API'] = $result['error'] ?? 'Unknown error';
 
-// 2. YouTube Embed method (simple fallback)
-$result = extractViaYouTubeEmbed($videoId);
+// 2. YouTube iOS API (often works when Android fails)
+$result = extractViaYouTubeiOS($videoId);
 if ($result['success']) {
     http_response_code(200);
     unset($result['success']);
     echo json_encode($result);
     exit;
 }
-$allErrors['Embed API'] = $result['error'] ?? 'Unknown error';
+$allErrors['iOS API'] = $result['error'] ?? 'Unknown error';
 
 // 3. Fallback to Piped
 $result = extractViaPiped($videoId);
