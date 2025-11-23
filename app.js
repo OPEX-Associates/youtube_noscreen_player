@@ -286,26 +286,26 @@ class YouTubeAudioPlayer {
     async getAudioUrl(videoId) {
         console.log('Extracting audio for video ID:', videoId);
         
-        // Use PHP backend exclusively
-        const phpBackendUrl = 'https://noscreenyt.opex.associates/api/youtube/extract-audio.php';
+        // Use Netlify serverless function
+        const netlifyFunctionUrl = '/.netlify/functions/extract-audio';
         
         try {
-            console.log('Calling PHP backend...');
+            console.log('Calling Netlify function...');
             
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
             
-            const response = await fetch(`${phpBackendUrl}?videoId=${videoId}`, {
+            const response = await fetch(`${netlifyFunctionUrl}?videoId=${videoId}`, {
                 headers: { 'Accept': 'application/json' },
                 signal: controller.signal
             });
             
             clearTimeout(timeoutId);
-            console.log('PHP backend response status:', response.status);
+            console.log('Netlify function response status:', response.status);
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('PHP backend response data:', data);
+                console.log('Netlify function response data:', data);
                 
                 if (data.audioUrl) {
                     console.log('✅ Audio extraction succeeded!');
@@ -314,19 +314,10 @@ class YouTubeAudioPlayer {
                     throw new Error(data.error || 'No audio URL returned');
                 }
             } else {
-                const errorData = await response.json();
-                console.error('PHP backend error response:', errorData);
+                const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+                console.error('Netlify function error response:', errorData);
                 
-                // Show detailed error information
-                let errorMessage = errorData.message || `HTTP ${response.status}`;
-                if (errorData.errors) {
-                    const errorDetails = Object.entries(errorData.errors)
-                        .map(([method, error]) => `${method}: ${error}`)
-                        .join('; ');
-                    errorMessage += ` - Details: ${errorDetails}`;
-                }
-                
-                throw new Error(errorMessage);
+                throw new Error(errorData.message || errorData.error || `HTTP ${response.status}`);
             }
         } catch (error) {
             console.error('❌ Audio extraction failed:', error.message);
