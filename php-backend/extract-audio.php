@@ -310,8 +310,20 @@ function extractViaYouTubeInnertube($videoId) {
         
         $data = json_decode($response, true);
         
+        if (!$data) {
+            return ['success' => false, 'error' => 'Failed to parse YouTube response', 'raw' => substr($response, 0, 500)];
+        }
+        
+        if (isset($data['playabilityStatus']['status']) && $data['playabilityStatus']['status'] !== 'OK') {
+            return [
+                'success' => false, 
+                'error' => 'Video not playable: ' . ($data['playabilityStatus']['reason'] ?? 'Unknown reason'),
+                'status' => $data['playabilityStatus']['status']
+            ];
+        }
+        
         if (!isset($data['streamingData']['adaptiveFormats'])) {
-            return ['success' => false, 'error' => 'No streaming data available'];
+            return ['success' => false, 'error' => 'No streaming data available', 'debug' => array_keys($data)];
         }
         
         // Find audio-only formats
