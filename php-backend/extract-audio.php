@@ -6,24 +6,43 @@
  */
 
 // Security: Only allow requests from your Netlify domain
-$allowedOrigin = 'https://nexusnoscreenyoutube.netlify.app';
+$allowedOrigins = [
+    'https://nexusnoscreenyoutube.netlify.app',
+    'http://localhost:8000',  // For local testing
+    'http://127.0.0.1:8000'   // For local testing
+];
+
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 
 // Check if request is from allowed origin
-if ($origin !== $allowedOrigin) {
+$originAllowed = false;
+foreach ($allowedOrigins as $allowed) {
+    if ($origin === $allowed) {
+        $originAllowed = true;
+        break;
+    }
+}
+
+// If no origin header (direct browser access) or not allowed, deny
+if (empty($origin) || !$originAllowed) {
     header('HTTP/1.1 403 Forbidden');
     header('Content-Type: application/json');
     echo json_encode([
         'error' => 'Access denied',
-        'message' => 'This API can only be accessed from the authorized domain'
+        'message' => 'This API can only be accessed from authorized domains',
+        'debug' => [
+            'receivedOrigin' => $origin,
+            'allowedOrigins' => $allowedOrigins
+        ]
     ]);
     exit;
 }
 
 // Set CORS headers for the allowed origin
-header("Access-Control-Allow-Origin: $allowedOrigin");
+header("Access-Control-Allow-Origin: $origin");
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
+header('Access-Control-Allow-Headers: Content-Type, Accept');
+header('Access-Control-Allow-Credentials: true');
 header('Content-Type: application/json');
 
 // Handle preflight OPTIONS request

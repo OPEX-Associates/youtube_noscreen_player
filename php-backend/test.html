@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHP Backend API Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #00ff00;
+        }
+        h1 { color: #00ff00; }
+        .test-section {
+            background: #000;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #00ff00;
+            border-radius: 5px;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: monospace;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        input {
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            font-family: monospace;
+            width: 300px;
+        }
+        pre {
+            background: #000;
+            padding: 10px;
+            overflow-x: auto;
+            border-left: 3px solid #00ff00;
+        }
+        .success { color: #00ff00; }
+        .error { color: #ff0000; }
+        .info { color: #00aaff; }
+    </style>
+</head>
+<body>
+    <h1>🔧 PHP Backend API Test Tool</h1>
+    
+    <div class="test-section">
+        <h2>1. Health Check Test</h2>
+        <p>Tests if the PHP backend is accessible and responding.</p>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <pre id="health-result">Click button to test...</pre>
+    </div>
+
+    <div class="test-section">
+        <h2>2. Audio Extraction Test</h2>
+        <p>Tests YouTube audio extraction with a sample video.</p>
+        <label>Video ID: </label>
+        <input type="text" id="videoId" value="dQw4w9WgXcQ" placeholder="Enter YouTube video ID">
+        <br><br>
+        <button onclick="testExtraction()">Test Extraction</button>
+        <pre id="extraction-result">Enter a video ID and click button to test...</pre>
+    </div>
+
+    <div class="test-section">
+        <h2>3. CORS Test</h2>
+        <p>Tests Cross-Origin Resource Sharing configuration.</p>
+        <button onclick="testCORS()">Test CORS Headers</button>
+        <pre id="cors-result">Click button to test...</pre>
+    </div>
+
+    <div class="test-section">
+        <h2>4. Backend URL Configuration</h2>
+        <p>Current backend URL: <span class="info" id="backend-url"></span></p>
+        <label>Update URL: </label>
+        <input type="text" id="new-backend-url" placeholder="https://yourdomain.com/api/youtube/">
+        <button onclick="updateBackendUrl()">Update</button>
+    </div>
+
+    <script>
+        // Default backend URL - UPDATE THIS with your actual domain
+        let BACKEND_URL = 'https://noscreenyt.opex.associates/api/youtube/';
+        
+        // Load saved URL from localStorage
+        const savedUrl = localStorage.getItem('phpBackendUrl');
+        if (savedUrl) {
+            BACKEND_URL = savedUrl;
+        }
+        
+        document.getElementById('backend-url').textContent = BACKEND_URL;
+        document.getElementById('new-backend-url').value = BACKEND_URL;
+
+        function updateBackendUrl() {
+            const newUrl = document.getElementById('new-backend-url').value.trim();
+            if (newUrl) {
+                BACKEND_URL = newUrl;
+                if (!BACKEND_URL.endsWith('/')) {
+                    BACKEND_URL += '/';
+                }
+                localStorage.setItem('phpBackendUrl', BACKEND_URL);
+                document.getElementById('backend-url').textContent = BACKEND_URL;
+                alert('Backend URL updated! Run tests again.');
+            }
+        }
+
+        async function testHealth() {
+            const resultEl = document.getElementById('health-result');
+            resultEl.innerHTML = '<span class="info">Testing...</span>';
+            
+            try {
+                const response = await fetch(BACKEND_URL + 'health.php', {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    resultEl.innerHTML = `<span class="success">✅ SUCCESS (${response.status})</span>\n\n` + 
+                        JSON.stringify(data, null, 2);
+                } else {
+                    resultEl.innerHTML = `<span class="error">❌ FAILED (${response.status})</span>\n\n` + 
+                        JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                resultEl.innerHTML = `<span class="error">❌ ERROR</span>\n\n${error.message}`;
+            }
+        }
+
+        async function testExtraction() {
+            const resultEl = document.getElementById('extraction-result');
+            const videoId = document.getElementById('videoId').value.trim();
+            
+            if (!videoId) {
+                resultEl.innerHTML = '<span class="error">Please enter a video ID</span>';
+                return;
+            }
+            
+            resultEl.innerHTML = '<span class="info">Testing extraction...</span>';
+            
+            try {
+                const startTime = Date.now();
+                const response = await fetch(BACKEND_URL + `extract-audio.php?videoId=${videoId}`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                const duration = Date.now() - startTime;
+                
+                const data = await response.json();
+                
+                if (response.ok && data.audioUrl) {
+                    resultEl.innerHTML = `<span class="success">✅ SUCCESS (${response.status}) - ${duration}ms</span>\n\n` + 
+                        JSON.stringify(data, null, 2) + 
+                        `\n\n<span class="info">Audio URL found: ${data.audioUrl.substring(0, 100)}...</span>`;
+                } else {
+                    resultEl.innerHTML = `<span class="error">❌ FAILED (${response.status}) - ${duration}ms</span>\n\n` + 
+                        JSON.stringify(data, null, 2);
+                }
+            } catch (error) {
+                resultEl.innerHTML = `<span class="error">❌ ERROR</span>\n\n${error.message}\n\n` +
+                    `<span class="info">Common issues:\n` +
+                    `- Backend URL incorrect\n` +
+                    `- CORS not configured\n` +
+                    `- PHP file not uploaded\n` +
+                    `- Origin not whitelisted</span>`;
+            }
+        }
+
+        async function testCORS() {
+            const resultEl = document.getElementById('cors-result');
+            resultEl.innerHTML = '<span class="info">Testing CORS...</span>';
+            
+            try {
+                const response = await fetch(BACKEND_URL + 'health.php', {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Content-Type'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers')
+                };
+                
+                resultEl.innerHTML = `<span class="success">✅ CORS Response (${response.status})</span>\n\n` + 
+                    JSON.stringify(corsHeaders, null, 2) + 
+                    `\n\n<span class="info">Your Origin: ${window.location.origin}</span>`;
+            } catch (error) {
+                resultEl.innerHTML = `<span class="error">❌ CORS ERROR</span>\n\n${error.message}`;
+            }
+        }
+
+        // Auto-run health check on load
+        window.addEventListener('load', () => {
+            setTimeout(testHealth, 500);
+        });
+    </script>
+</body>
+</html>

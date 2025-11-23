@@ -135,19 +135,43 @@ The API tries multiple sources in order:
 
 ## 🔍 Troubleshooting
 
+### Use the Test Tool First!
+Upload `test.html` to your server and open it in a browser:
+```
+https://yourdomain.com/api/youtube/test.html
+```
+This will automatically diagnose common issues.
+
 ### "Access denied" error
-- Check that requests are coming from `https://nexusnoscreenyoutube.netlify.app/`
-- Verify CORS headers in browser developer tools
+**Cause:** Origin check failed or CORS issue  
+**Solution:**
+1. Open browser console (F12) and check the `Origin` header
+2. Make sure your Netlify domain is in the `$allowedOrigins` array in `extract-audio.php`
+3. If testing locally, the localhost origins are already included
+
+### "Failed to fetch" error
+**Cause:** Network/CORS issue  
+**Solution:**
+1. Open the test.html file and run the CORS test
+2. Check browser console for detailed error
+3. Verify the PHP file is accessible: try opening `health.php` directly in browser
+4. Check `.htaccess` is uploaded and mod_headers is enabled
 
 ### "All extraction methods failed"
+**Cause:** Invidious/Piped APIs are down or blocked  
+**Solution:**
 - Check that cURL is enabled: `php -m | grep curl`
 - Verify SSL certificate validation (may need to disable on some shared hosts)
-- Test individual Invidious/Piped instances manually
+- Test individual Invidious/Piped instances manually in browser
+- This is temporary - wait a few minutes and try again
 
 ### 500 Internal Server Error
+**Cause:** PHP error or misconfiguration  
+**Solution:**
 - Check PHP error logs in your hosting control panel
 - Verify file permissions (644 for PHP files)
 - Ensure PHP version is 7.4+
+- Check syntax: `php -l extract-audio.php`
 
 ## 📞 Support
 
