@@ -315,7 +315,18 @@ class YouTubeAudioPlayer {
                 }
             } else {
                 const errorData = await response.json();
-                throw new Error(errorData.message || `HTTP ${response.status}`);
+                console.error('PHP backend error response:', errorData);
+                
+                // Show detailed error information
+                let errorMessage = errorData.message || `HTTP ${response.status}`;
+                if (errorData.errors) {
+                    const errorDetails = Object.entries(errorData.errors)
+                        .map(([method, error]) => `${method}: ${error}`)
+                        .join('; ');
+                    errorMessage += ` - Details: ${errorDetails}`;
+                }
+                
+                throw new Error(errorMessage);
             }
         } catch (error) {
             console.error('❌ Audio extraction failed:', error.message);
