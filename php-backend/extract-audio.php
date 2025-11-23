@@ -269,23 +269,27 @@ function extractViaPiped($videoId) {
 }
 
 /**
- * Extract audio using YouTube's innertube API (more reliable)
+ * Extract audio using YouTube's Android client API (most reliable for shared hosting)
  */
-function extractViaYouTubeInnertube($videoId) {
+function extractViaYouTubeAndroidAPI($videoId) {
     try {
-        $apiKey = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'; // Public YouTube API key
+        // Use Android client - less likely to be blocked
+        $apiKey = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
         $url = "https://www.youtube.com/youtubei/v1/player?key=$apiKey";
         
         $postData = json_encode([
             'context' => [
                 'client' => [
-                    'clientName' => 'WEB',
-                    'clientVersion' => '2.20231219.01.00',
+                    'clientName' => 'ANDROID',
+                    'clientVersion' => '17.31.35',
+                    'androidSdkVersion' => 30,
                     'hl' => 'en',
                     'gl' => 'US'
                 ]
             ],
-            'videoId' => $videoId
+            'videoId' => $videoId,
+            'contentCheckOk' => true,
+            'racyCheckOk' => true
         ]);
         
         $ch = curl_init();
@@ -296,13 +300,21 @@ function extractViaYouTubeInnertube($videoId) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent: com.google.android.youtube/17.31.35 (Linux; U; Android 11) gzip',
+            'Accept: */*',
+            'Accept-Language: en-US,en;q=0.9'
         ]);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
         curl_close($ch);
+        
+        if (!empty($curlError)) {
+            return ['success' => false, 'error' => "cURL error: $curlError"];
+        }
         
         if ($httpCode !== 200 || empty($response)) {
             return ['success' => false, 'error' => "YouTube API returned HTTP $httpCode"];
@@ -311,19 +323,17 @@ function extractViaYouTubeInnertube($videoId) {
         $data = json_decode($response, true);
         
         if (!$data) {
-            return ['success' => false, 'error' => 'Failed to parse YouTube response', 'raw' => substr($response, 0, 500)];
+            return ['success' => false, 'error' => 'Failed to parse YouTube response'];
         }
         
+        // Check playability
         if (isset($data['playabilityStatus']['status']) && $data['playabilityStatus']['status'] !== 'OK') {
-            return [
-                'success' => false, 
-                'error' => 'Video not playable: ' . ($data['playabilityStatus']['reason'] ?? 'Unknown reason'),
-                'status' => $data['playabilityStatus']['status']
-            ];
+            $reason = $data['playabilityStatus']['reason'] ?? 'Unknown reason';
+            return ['success' => false, 'error' => "Video not playable: $reason"];
         }
         
         if (!isset($data['streamingData']['adaptiveFormats'])) {
-            return ['success' => false, 'error' => 'No streaming data available', 'debug' => array_keys($data)];
+            return ['success' => false, 'error' => 'No streaming data available'];
         }
         
         // Find audio-only formats
@@ -334,10 +344,10 @@ function extractViaYouTubeInnertube($videoId) {
         });
         
         if (empty($audioFormats)) {
-            return ['success' => false, 'error' => 'No audio formats found'];
+            return ['success' => false, 'error' => 'No audio formats with direct URLs found'];
         }
         
-        // Prefer OPUS format
+        // Prefer OPUS format, fallback to any audio
         $selectedFormat = null;
         foreach ($audioFormats as $format) {
             if (strpos($format['mimeType'], 'opus') !== false) {
@@ -362,40 +372,53 @@ function extractViaYouTubeInnertube($videoId) {
             'duration' => $videoDetails['lengthSeconds'] ?? 0,
             'uploader' => $videoDetails['author'] ?? 'Unknown',
             'thumbnail' => "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
-            'source' => 'YouTube Innertube'
+            'source' => 'YouTube Android API'
         ];
         
     } catch (Exception $e) {
-        return ['success' => false, 'error' => $e->getMessage()];
+        return ['success' => false, 'error' => "Exception: " . $e->getMessage()];
     }
 }
 
 // Try extraction methods in order of reliability
-// 1. YouTube's own API (most reliable)
-$result = extractViaYouTubeInnertube($videoId);
+$allErrors = [];
 
-// 2. Fallback to Piped
-if (!$result['success']) {
-    $result = extractViaPiped($videoId);
-}
-
-// 3. Fallback to Invidious
-if (!$result['success']) {
-    $result = extractViaInvidious($videoId);
-}
-
-// Return result
+// 1. YouTube Android API (most reliable for shared hosting)
+$result = extractViaYouTubeAndroidAPI($videoId);
 if ($result['success']) {
     http_response_code(200);
     unset($result['success']);
     echo json_encode($result);
-} else {
-    http_response_code(503);
-    echo json_encode([
-        'error' => 'All extraction methods failed',
-        'videoId' => $videoId,
-        'message' => 'Unable to extract audio from this video. Please try again later.',
-        'lastError' => $result['error'] ?? 'Unknown error'
-    ]);
+    exit;
 }
+$allErrors['Android API'] = $result['error'] ?? 'Unknown error';
+
+// 2. Fallback to Piped
+$result = extractViaPiped($videoId);
+if ($result['success']) {
+    http_response_code(200);
+    unset($result['success']);
+    echo json_encode($result);
+    exit;
+}
+$allErrors['Piped'] = $result['error'] ?? 'Unknown error';
+
+// 3. Fallback to Invidious
+$result = extractViaInvidious($videoId);
+if ($result['success']) {
+    http_response_code(200);
+    unset($result['success']);
+    echo json_encode($result);
+    exit;
+}
+$allErrors['Invidious'] = $result['error'] ?? 'Unknown error';
+
+// All methods failed - return comprehensive error
+http_response_code(503);
+echo json_encode([
+    'error' => 'All extraction methods failed',
+    'videoId' => $videoId,
+    'message' => 'Unable to extract audio from this video. Please try again later.',
+    'errors' => $allErrors
+]);
 ?>
