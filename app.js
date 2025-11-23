@@ -288,15 +288,55 @@ class YouTubeAudioPlayer {
         
         // Try different extraction methods based on deployment
         
-        // 1. Try serverless function (works for both Netlify and localhost with Netlify CLI)
+        // 1. Try PHP backend (your shared hosting)
+        // TODO: Replace 'YOUR_DOMAIN_HERE' with your actual domain after deployment
+        const phpBackendUrl = 'https://noscreenyt.opex.associates/api/youtube/extract-audio.php'; // e.g., 'https://yourdomain.com/api/youtube/extract-audio.php'
+        
+        if (phpBackendUrl !== 'https://noscreenyt.opex.associates/api/youtube/extract-audio.php') {
+            try {
+                console.log('Trying PHP backend extraction...');
+                
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
+                
+                const response = await fetch(`${phpBackendUrl}?videoId=${videoId}`, {
+                    headers: { 'Accept': 'application/json' },
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                console.log('PHP backend response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('PHP backend response data:', data);
+                    
+                    if (data.audioUrl) {
+                        console.log('✅ PHP backend extraction succeeded!');
+                        return data.audioUrl;
+                    } else {
+                        console.log('⚠️ PHP backend responded but no audio URL:', data.error);
+                    }
+                } else {
+                    const errorText = await response.text();
+                    console.log('❌ PHP backend returned error:', response.status, errorText);
+                }
+            } catch (error) {
+                console.log('❌ PHP backend extraction failed:', error.message);
+                if (error.name === 'AbortError') {
+                    console.log('⚠️ PHP backend timed out');
+                }
+            }
+        }
+        
+        // 2. Try serverless function (Netlify Functions - fallback)
         try {
             console.log('Trying serverless extraction...');
             const functionUrl = `/.netlify/functions/extract-audio?videoId=${videoId}`;
             console.log('Function URL:', functionUrl);
             
-            // Add timeout to prevent hanging
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 12000); // 12 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 12000);
             
             const response = await fetch(functionUrl, {
                 headers: { 'Accept': 'application/json' },
@@ -327,7 +367,7 @@ class YouTubeAudioPlayer {
             }
         }
         
-        // 2. Try local backend (for development)
+        // 3. Try local backend (for development)
         const backendPorts = [3001, 3002, 3000];
         for (const port of backendPorts) {
             try {
