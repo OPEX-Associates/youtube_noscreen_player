@@ -577,6 +577,12 @@ class YouTubeAudioPlayer {
 
     handleAudioError(e) {
         console.error('Audio error:', e);
+        
+        // Don't show error if audio src is empty (happens on page load)
+        if (!this.audioPlayer.src || this.audioPlayer.src === window.location.href) {
+            return;
+        }
+        
         this.showStatus('Failed to load audio. The link may have expired.', 'error');
         
         // Try to play next track if available
