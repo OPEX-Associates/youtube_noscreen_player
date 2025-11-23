@@ -625,10 +625,135 @@ function extractViaYouTubeiOS($videoId) {
     }
 }
 
-// Try extraction methods in order of reliability
+/**
+ * Extract audio using YouTube TV client (very reliable, used by yt-dlp)
+ */
+function extractViaYouTubeTV($videoId) {
+    try {
+        $url = "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false";
+        
+        $postData = json_encode([
+            'videoId' => $videoId,
+            'context' => [
+                'client' => [
+                    'clientName' => 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
+                    'clientVersion' => '2.0',
+                    'hl' => 'en',
+                    'gl' => 'US',
+                    'platform' => 'TV'
+                ],
+                'thirdParty' => [
+                    'embedUrl' => 'https://www.youtube.com/'
+                ]
+            ],
+            'playbackContext' => [
+                'contentPlaybackContext' => [
+                    'signatureTimestamp' => 0
+                ]
+            ]
+        ]);
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'User-Agent: Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version',
+            'Origin: https://www.youtube.com'
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        if (!empty($curlError)) {
+            return ['success' => false, 'error' => "cURL error: $curlError"];
+        }
+        
+        if ($httpCode !== 200 || empty($response)) {
+            return ['success' => false, 'error' => "HTTP $httpCode"];
+        }
+        
+        $data = json_decode($response, true);
+        
+        if (!$data) {
+            return ['success' => false, 'error' => 'JSON parse failed'];
+        }
+        
+        // Check playability
+        if (isset($data['playabilityStatus']['status']) && $data['playabilityStatus']['status'] !== 'OK') {
+            $reason = $data['playabilityStatus']['reason'] ?? 'Unknown';
+            return ['success' => false, 'error' => "Not playable: $reason"];
+        }
+        
+        if (!isset($data['streamingData']['adaptiveFormats'])) {
+            return ['success' => false, 'error' => 'No streaming data'];
+        }
+        
+        // Find audio-only formats
+        $audioFormats = array_filter($data['streamingData']['adaptiveFormats'], function($format) {
+            return isset($format['mimeType']) && 
+                   strpos($format['mimeType'], 'audio') !== false && 
+                   isset($format['url']);
+        });
+        
+        if (empty($audioFormats)) {
+            return ['success' => false, 'error' => 'No audio formats'];
+        }
+        
+        // Prefer OPUS
+        $selectedFormat = null;
+        foreach ($audioFormats as $format) {
+            if (strpos($format['mimeType'], 'opus') !== false) {
+                $selectedFormat = $format;
+                break;
+            }
+        }
+        
+        if (!$selectedFormat) {
+            $selectedFormat = reset($audioFormats);
+        }
+        
+        $videoDetails = $data['videoDetails'] ?? [];
+        
+        return [
+            'success' => true,
+            'audioUrl' => $selectedFormat['url'],
+            'format' => 'webm',
+            'codec' => strpos($selectedFormat['mimeType'], 'opus') !== false ? 'opus' : 'mp4a',
+            'quality' => $selectedFormat['bitrate'] ?? 'unknown',
+            'title' => $videoDetails['title'] ?? 'Unknown',
+            'duration' => $videoDetails['lengthSeconds'] ?? 0,
+            'uploader' => $videoDetails['author'] ?? 'Unknown',
+            'thumbnail' => "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
+            'source' => 'YouTube TV'
+        ];
+        
+    } catch (Exception $e) {
+        return ['success' => false, 'error' => $e->getMessage()];
+    }
+}
+
+// Try extraction methods in order of reliability (inspired by yt-dlp's approach)
 $allErrors = [];
 
-// 1. YouTube Mobile Web (best for avoiding bot detection)
+// 1. YouTube TV Client (used by yt-dlp, very reliable)
+$result = extractViaYouTubeTV($videoId);
+if ($result['success']) {
+    http_response_code(200);
+    unset($result['success']);
+    echo json_encode($result);
+    exit;
+}
+$allErrors['TV Client'] = $result['error'] ?? 'Unknown error';
+
+// 2. YouTube Mobile Web (best for avoiding bot detection)
 $result = extractViaYouTubeMWeb($videoId);
 if ($result['success']) {
     http_response_code(200);
@@ -638,7 +763,7 @@ if ($result['success']) {
 }
 $allErrors['Mobile Web'] = $result['error'] ?? 'Unknown error';
 
-// 2. YouTube Android API
+// 3. YouTube Android API
 $result = extractViaYouTubeAndroidAPI($videoId);
 if ($result['success']) {
     http_response_code(200);
@@ -648,7 +773,7 @@ if ($result['success']) {
 }
 $allErrors['Android API'] = $result['error'] ?? 'Unknown error';
 
-// 3. YouTube iOS API
+// 4. YouTube iOS API
 $result = extractViaYouTubeiOS($videoId);
 if ($result['success']) {
     http_response_code(200);
@@ -658,7 +783,7 @@ if ($result['success']) {
 }
 $allErrors['iOS API'] = $result['error'] ?? 'Unknown error';
 
-// 4. Fallback to Piped
+// 5. Fallback to Piped
 $result = extractViaPiped($videoId);
 if ($result['success']) {
     http_response_code(200);
@@ -668,7 +793,7 @@ if ($result['success']) {
 }
 $allErrors['Piped'] = $result['error'] ?? 'Unknown error';
 
-// 5. Fallback to Invidious
+// 6. Last resort: Invidious
 $result = extractViaInvidious($videoId);
 if ($result['success']) {
     http_response_code(200);
