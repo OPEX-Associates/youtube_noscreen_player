@@ -8,6 +8,7 @@
 // Security: Only allow requests from your Netlify domain
 $allowedOrigins = [
     'https://nexusnoscreenyoutube.netlify.app',
+    'https://noscreenyt.opex.associates',  // Your actual domain
     'http://localhost:8000',  // For local testing
     'http://127.0.0.1:8000'   // For local testing
 ];

@@ -4,17 +4,31 @@
  * Simple endpoint to verify the API is working
  */
 
-$allowedOrigin = 'https://nexusnoscreenyoutube.netlify.app';
+$allowedOrigins = [
+    'https://nexusnoscreenyoutube.netlify.app',
+    'https://noscreenyt.opex.associates',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000'
+];
+
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '';
 
-if ($origin !== $allowedOrigin) {
+$originAllowed = false;
+foreach ($allowedOrigins as $allowed) {
+    if ($origin === $allowed) {
+        $originAllowed = true;
+        break;
+    }
+}
+
+if (empty($origin) || !$originAllowed) {
     header('HTTP/1.1 403 Forbidden');
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Access denied']);
+    echo json_encode(['error' => 'Access denied', 'receivedOrigin' => $origin]);
     exit;
 }
 
-header("Access-Control-Allow-Origin: $allowedOrigin");
+header("Access-Control-Allow-Origin: $origin");
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Content-Type: application/json');
 
