@@ -274,20 +274,26 @@ function extractViaPiped($videoId) {
 function extractViaYouTubeAndroidAPI($videoId) {
     try {
         // Use Android client - less likely to be blocked
-        $apiKey = 'AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w';
-        $url = "https://www.youtube.com/youtubei/v1/player?key=$apiKey";
+        $url = "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w&prettyPrint=false";
         
         $postData = json_encode([
+            'videoId' => $videoId,
             'context' => [
                 'client' => [
                     'clientName' => 'ANDROID',
-                    'clientVersion' => '17.31.35',
+                    'clientVersion' => '19.09.37',
                     'androidSdkVersion' => 30,
                     'hl' => 'en',
-                    'gl' => 'US'
+                    'gl' => 'US',
+                    'utcOffsetMinutes' => 0
                 ]
             ],
-            'videoId' => $videoId,
+            'params' => 'CgIQBg==',
+            'playbackContext' => [
+                'contentPlaybackContext' => [
+                    'html5Preference' => 'HTML5_PREF_WANTS'
+                ]
+            ],
             'contentCheckOk' => true,
             'racyCheckOk' => true
         ]);
@@ -300,9 +306,10 @@ function extractViaYouTubeAndroidAPI($videoId) {
         curl_setopt($ch, CURLOPT_TIMEOUT, 10);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'User-Agent: com.google.android.youtube/17.31.35 (Linux; U; Android 11) gzip',
-            'Accept: */*',
-            'Accept-Language: en-US,en;q=0.9'
+            'User-Agent: com.google.android.youtube/19.09.37 (Linux; U; Android 11) gzip',
+            'X-YouTube-Client-Name: 3',
+            'X-YouTube-Client-Version: 19.09.37',
+            'Accept-Encoding: gzip, deflate'
         ]);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -380,6 +387,90 @@ function extractViaYouTubeAndroidAPI($videoId) {
     }
 }
 
+/**
+ * Extract audio using YouTube embed player (simple method)
+ */
+function extractViaYouTubeEmbed($videoId) {
+    try {
+        $url = "https://www.youtube.com/get_video_info?video_id=$videoId&el=embedded";
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        ]);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode !== 200 || empty($response)) {
+            return ['success' => false, 'error' => "HTTP $httpCode"];
+        }
+        
+        parse_str($response, $data);
+        
+        if (isset($data['status']) && $data['status'] === 'fail') {
+            return ['success' => false, 'error' => $data['reason'] ?? 'Video unavailable'];
+        }
+        
+        if (!isset($data['player_response'])) {
+            return ['success' => false, 'error' => 'No player response'];
+        }
+        
+        $playerResponse = json_decode($data['player_response'], true);
+        
+        if (!isset($playerResponse['streamingData']['adaptiveFormats'])) {
+            return ['success' => false, 'error' => 'No formats available'];
+        }
+        
+        // Find audio-only formats
+        $audioFormats = array_filter($playerResponse['streamingData']['adaptiveFormats'], function($format) {
+            return isset($format['mimeType']) && 
+                   strpos($format['mimeType'], 'audio') !== false && 
+                   isset($format['url']);
+        });
+        
+        if (empty($audioFormats)) {
+            return ['success' => false, 'error' => 'No audio URLs found'];
+        }
+        
+        // Prefer OPUS
+        $selectedFormat = null;
+        foreach ($audioFormats as $format) {
+            if (strpos($format['mimeType'], 'opus') !== false) {
+                $selectedFormat = $format;
+                break;
+            }
+        }
+        
+        if (!$selectedFormat) {
+            $selectedFormat = reset($audioFormats);
+        }
+        
+        $videoDetails = $playerResponse['videoDetails'] ?? [];
+        
+        return [
+            'success' => true,
+            'audioUrl' => $selectedFormat['url'],
+            'format' => 'webm',
+            'codec' => strpos($selectedFormat['mimeType'], 'opus') !== false ? 'opus' : 'mp4a',
+            'quality' => $selectedFormat['bitrate'] ?? 'unknown',
+            'title' => $videoDetails['title'] ?? 'Unknown',
+            'duration' => $videoDetails['lengthSeconds'] ?? 0,
+            'uploader' => $videoDetails['author'] ?? 'Unknown',
+            'thumbnail' => "https://i.ytimg.com/vi/$videoId/hqdefault.jpg",
+            'source' => 'YouTube Embed'
+        ];
+        
+    } catch (Exception $e) {
+        return ['success' => false, 'error' => $e->getMessage()];
+    }
+}
+
 // Try extraction methods in order of reliability
 $allErrors = [];
 
@@ -393,7 +484,17 @@ if ($result['success']) {
 }
 $allErrors['Android API'] = $result['error'] ?? 'Unknown error';
 
-// 2. Fallback to Piped
+// 2. YouTube Embed method (simple fallback)
+$result = extractViaYouTubeEmbed($videoId);
+if ($result['success']) {
+    http_response_code(200);
+    unset($result['success']);
+    echo json_encode($result);
+    exit;
+}
+$allErrors['Embed API'] = $result['error'] ?? 'Unknown error';
+
+// 3. Fallback to Piped
 $result = extractViaPiped($videoId);
 if ($result['success']) {
     http_response_code(200);
@@ -403,7 +504,7 @@ if ($result['success']) {
 }
 $allErrors['Piped'] = $result['error'] ?? 'Unknown error';
 
-// 3. Fallback to Invidious
+// 4. Fallback to Invidious
 $result = extractViaInvidious($videoId);
 if ($result['success']) {
     http_response_code(200);
