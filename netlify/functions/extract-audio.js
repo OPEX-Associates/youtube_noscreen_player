@@ -1,5 +1,135 @@
-// Netlify serverless function for YouTube audio extraction
-// Uses YouTube's internal APIs (TV, Mobile Web) inspired by yt-dlp
+// AWS Lambda function for YouTube audio extraction
+// Uses Cobalt API, Piped API, and YouTube's internal APIs
+
+/**
+ * Extract audio using Cobalt API (most reliable download service)
+ */
+async function extractViaCobalt(videoId) {
+  const cobaltInstances = [
+    'https://api.cobalt.tools',
+    'https://co.wuk.sh'
+  ];
+  
+  for (const instance of cobaltInstances) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(`${instance}/api/json`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          isAudioOnly: true,
+          aFormat: 'best'
+        }),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
+      
+      if (!response.ok) {
+        console.log(`Cobalt ${instance} returned ${response.status}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      if (data.status === 'redirect' || data.status === 'stream') {
+        const audioUrl = data.url;
+        
+        return {
+          audioUrl: audioUrl,
+          format: 'opus',
+          codec: 'opus',
+          quality: 'best',
+          title: `YouTube Video ${videoId}`,
+          duration: 0,
+          uploader: 'Unknown',
+          thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+          source: `Cobalt (${instance})`
+        };
+      }
+      
+      console.log(`Cobalt ${instance} failed:`, data.text || 'Unknown error');
+    } catch (error) {
+      console.log(`Cobalt ${instance} error:`, error.message);
+      continue;
+    }
+  }
+  
+  throw new Error('All Cobalt instances failed');
+}
+
+/**
+ * Extract audio using Piped API (privacy-focused YouTube frontend)
+ */
+async function extractViaPiped(videoId) {
+  const pipedInstances = [
+    'https://pipedapi.kavin.rocks',
+    'https://pipedapi.tokhmi.xyz',
+    'https://pipedapi.moomoo.me',
+    'https://api-piped.mha.fi',
+    'https://pipedapi.syncpundit.io'
+  ];
+  
+  const errors = [];
+  
+  for (const instance of pipedInstances) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      
+      const response = await fetch(`${instance}/streams/${videoId}`, {
+        headers: { 
+          'User-Agent': 'Mozilla/5.0',
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeout);
+      
+      if (!response.ok) {
+        errors.push(`${instance}: HTTP ${response.status}`);
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      const audioStreams = data.audioStreams || [];
+      if (audioStreams.length === 0) {
+        errors.push(`${instance}: No audio streams`);
+        continue;
+      }
+      
+      // Prefer opus format
+      const opusStream = audioStreams.find(s => s.codec?.includes('opus')) || audioStreams[0];
+      
+      console.log(`✅ Piped ${instance} succeeded`);
+      
+      return {
+        audioUrl: opusStream.url,
+        format: opusStream.format || 'webm',
+        codec: opusStream.codec || 'opus',
+        quality: opusStream.bitrate || 'unknown',
+        title: data.title,
+        duration: data.duration,
+        uploader: data.uploader,
+        thumbnail: data.thumbnailUrl || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        source: `Piped (${instance})`
+      };
+    } catch (error) {
+      errors.push(`${instance}: ${error.message}`);
+      continue;
+    }
+  }
+  
+  throw new Error(`All Piped instances failed: ${errors.join(', ')}`);
+}
 
 /**
  * Extract audio using YouTube TV client (very reliable, used by yt-dlp)
@@ -170,7 +300,41 @@ exports.handler = async (event, context) => {
   
   const errors = {};
   
-  // Method 1: YouTube TV Client (most reliable, used by yt-dlp)
+  // Method 1: Cobalt API (most reliable currently)
+  try {
+    console.log('Trying Cobalt API...');
+    const cobaltResult = await extractViaCobalt(videoId);
+    if (cobaltResult.audioUrl) {
+      console.log('✅ Cobalt API succeeded');
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(cobaltResult)
+      };
+    }
+  } catch (cobaltError) {
+    console.error('Cobalt API failed:', cobaltError.message);
+    errors['Cobalt'] = cobaltError.message;
+  }
+  
+  // Method 2: Piped API (privacy-focused)
+  try {
+    console.log('Trying Piped API...');
+    const pipedResult = await extractViaPiped(videoId);
+    if (pipedResult.audioUrl) {
+      console.log('✅ Piped API succeeded');
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify(pipedResult)
+      };
+    }
+  } catch (pipedError) {
+    console.error('Piped API failed:', pipedError.message);
+    errors['Piped'] = pipedError.message;
+  }
+  
+  // Method 2: YouTube TV Client
   try {
     console.log('Trying YouTube TV client...');
     const tvResult = await extractViaYouTubeTV(videoId);
@@ -187,7 +351,7 @@ exports.handler = async (event, context) => {
     errors['TV Client'] = tvError.message;
   }
   
-  // Method 2: YouTube Mobile Web
+  // Method 3: YouTube Mobile Web
   try {
     console.log('Trying YouTube Mobile Web...');
     const mwebResult = await extractViaYouTubeMWeb(videoId);
@@ -204,63 +368,7 @@ exports.handler = async (event, context) => {
     errors['Mobile Web'] = mwebError.message;
   }
   
-  // Method 3: Piped API
-  const pipedInstances = [
-    'https://pipedapi.kavin.rocks',
-    'https://pipedapi-libre.kavin.rocks',
-    'https://api-piped.mha.fi'
-  ];
-  
-  for (const instance of pipedInstances) {
-    try {
-      console.log(`Trying Piped instance: ${instance}`);
-      
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
-      
-      const response = await fetch(`${instance}/streams/${videoId}`, {
-        headers: { 'Accept': 'application/json' },
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeout);
-      
-      if (!response.ok) continue;
-      
-      const data = await response.json();
-      const audioStreams = data.audioStreams?.filter(s => s.url && s.mimeType) || [];
-      
-      if (audioStreams.length > 0) {
-        const opusStream = audioStreams.find(s => s.mimeType.includes('opus'));
-        const selectedStream = opusStream || audioStreams[0];
-        
-        console.log(`✅ Success with Piped ${instance}`);
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            audioUrl: selectedStream.url,
-            format: selectedStream.format || 'webm',
-            codec: selectedStream.codec || 'opus',
-            quality: selectedStream.bitrate || 'unknown',
-            title: data.title,
-            duration: data.duration,
-            uploader: data.uploader,
-            thumbnail: data.thumbnailUrl,
-            source: 'Piped'
-          })
-        };
-      }
-      
-    } catch (error) {
-      console.log(`Piped ${instance} failed:`, error.message);
-      errors[`Piped ${instance}`] = error.message;
-      continue;
-    }
-  }
-  
-  // Method 4: Invidious instances
+  // Method 4: Invidious instances (last resort)
   const invidiousInstances = [
     'https://invidious.fdn.fr',
     'https://iv.nboeck.de',
