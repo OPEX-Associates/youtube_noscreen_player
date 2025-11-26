@@ -135,6 +135,87 @@ async function extractViaPiped(videoId) {
  * Extract audio using YouTube TV client (very reliable, used by yt-dlp)
  */
 async function extractViaYouTubeTV(videoId) {
+  // Try different API keys and client configurations
+  const configs = [
+    {
+      key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
+      clientName: 'WEB_EMBEDDED_PLAYER',
+      clientVersion: '2.20231219.04.00',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    },
+    {
+      key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
+      clientName: 'ANDROID',
+      clientVersion: '19.09.36',
+      userAgent: 'com.google.android.youtube/19.09.36 (Linux; U; Android 11) gzip'
+    },
+    {
+      key: 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8',
+      clientName: 'IOS',
+      clientVersion: '19.09.3',
+      userAgent: 'com.google.ios.youtube/19.09.3 (iPhone14,3; U; CPU iOS 15_6 like Mac OS X)'
+    }
+  ];
+  
+  for (const config of configs) {
+    try {
+      const url = `https://www.youtube.com/youtubei/v1/player?key=${config.key}&prettyPrint=false`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': config.userAgent,
+          'Origin': 'https://www.youtube.com',
+          'Referer': 'https://www.youtube.com/'
+        },
+        body: JSON.stringify({
+          videoId: videoId,
+          context: {
+            client: {
+              clientName: config.clientName,
+              clientVersion: config.clientVersion,
+              hl: 'en',
+              gl: 'US'
+            }
+          }
+        })
+      });
+      
+      if (!response.ok) continue;
+      
+      const data = await response.json();
+      
+      if (data.playabilityStatus?.status === 'OK' && data.streamingData?.adaptiveFormats) {
+        const audioFormats = data.streamingData.adaptiveFormats.filter(f => 
+          f.mimeType?.includes('audio') && f.url
+        );
+        
+        if (audioFormats.length > 0) {
+          const opusFormat = audioFormats.find(f => f.mimeType.includes('opus'));
+          const selectedFormat = opusFormat || audioFormats[0];
+          
+          console.log(`✅ YouTube ${config.clientName} succeeded`);
+          
+          return {
+            audioUrl: selectedFormat.url,
+            format: selectedFormat.mimeType.includes('webm') ? 'webm' : 'mp4',
+            codec: selectedFormat.mimeType.includes('opus') ? 'opus' : 'mp4a',
+            quality: selectedFormat.bitrate || 'unknown',
+            title: data.videoDetails?.title || `YouTube Video ${videoId}`,
+            duration: data.videoDetails?.lengthSeconds || 0,
+            uploader: data.videoDetails?.author || 'Unknown',
+            thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            source: `YouTube ${config.clientName}`
+          };
+        }
+      }
+    } catch (error) {
+      console.log(`YouTube ${config.clientName} failed:`, error.message);
+      continue;
+    }
+  }
+  
   const url = "https://www.youtube.com/youtubei/v1/player?key=AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8&prettyPrint=false";
   
   const response = await fetch(url, {
