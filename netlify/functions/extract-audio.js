@@ -141,28 +141,31 @@ async function extractViaYouTubeTV(videoId) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'User-Agent': 'Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version',
-      'Origin': 'https://www.youtube.com'
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Origin': 'https://www.youtube.com',
+      'Referer': 'https://www.youtube.com/embed/' + videoId,
+      'X-Youtube-Client-Name': '1',
+      'X-Youtube-Client-Version': '2.20231219.04.00'
     },
     body: JSON.stringify({
       videoId: videoId,
       context: {
         client: {
-          clientName: 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
-          clientVersion: '2.0',
+          clientName: 'WEB_EMBEDDED_PLAYER',
+          clientVersion: '2.20231219.04.00',
           hl: 'en',
-          gl: 'US',
-          platform: 'TV'
+          gl: 'US'
         },
         thirdParty: {
-          embedUrl: 'https://www.youtube.com/'
+          embedUrl: 'https://www.youtube.com/embed/' + videoId
         }
       },
       playbackContext: {
         contentPlaybackContext: {
-          signatureTimestamp: 0
+          signatureTimestamp: Math.floor(Date.now() / 1000)
         }
-      }
+      },
+      params: 'CgIQBg=='
     })
   });
   
