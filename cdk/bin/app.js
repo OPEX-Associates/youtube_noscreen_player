@@ -16,19 +16,12 @@ new YouTubeAudioStack(app, 'YouTubeAudioStack', {
     // Monthly request limit (10,000 requests/month = ~333/day)
     monthlyRequestLimit: 10000,
     
-    // Rate limiting (requests per second per IP)
+    // Rate limiting (requests per second - enforced by API Gateway)
     rateLimit: 10,
-    rateLimitPeriod: 60, // seconds
     
     // Lambda configuration
     lambdaTimeout: 30, // seconds
     lambdaMemory: 512, // MB
-    
-    // Cost alert threshold (USD)
-    costAlertThreshold: 10,
-    
-    // Email for cost alerts
-    alertEmail: process.env.ALERT_EMAIL || 'your-email@example.com',
     
     // CORS allowed origins
     allowedOrigins: [

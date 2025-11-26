@@ -4,22 +4,22 @@ This CDK stack deploys a serverless YouTube audio extraction API to AWS with bui
 
 ## Features
 
-- ✅ **Cost Controls**: Monthly request limits (default: 10,000/month)
-- ✅ **Rate Limiting**: Per-IP throttling (default: 10 req/min)
-- ✅ **CloudWatch Alerts**: Email notifications for high usage or errors
-- ✅ **DynamoDB Tracking**: Request tracking with auto-cleanup (90-day TTL)
-- ✅ **API Gateway**: Managed API with CORS support
-- ✅ **Lambda Function**: Serverless audio extraction
-- ✅ **Pay-as-you-go**: Only pay for what you use
+- ✅ **Cost Controls**: Monthly request limits (default: 10,000/month) via API Gateway
+- ✅ **Rate Limiting**: API Gateway throttling (default: 10 req/sec)
+- ✅ **Minimal Resources**: Only Lambda + API Gateway (no DynamoDB, no CloudWatch)
+- ✅ **CORS Support**: Pre-configured for your frontend
+- ✅ **Serverless**: Scales automatically, pay only for requests
+- ✅ **Ultra-low cost**: ~$0.32/month or FREE within Lambda free tier
 
 ## Cost Estimate
 
-With default settings (10,000 requests/month):
-- **Lambda**: ~$0.20 (first 1M free)
-- **API Gateway**: ~$0.01 (first 1M free for 12 months)
-- **DynamoDB**: ~$0.00 (free tier covers it)
-- **CloudWatch**: ~$0.50
-- **Total: $0-5/month** (mostly free tier)
+**Minimal Setup (10,000 requests/month):**
+- **Lambda**: $0.20/month (after free tier: 1M requests/month free)
+- **API Gateway**: $0.035/month (REST API: $3.50 per million)
+- **Data Transfer**: ~$0.09/month (first 100GB free)
+- **Total: ~$0.32/month** or **FREE** if under 1M Lambda requests
+
+**No DynamoDB, No CloudWatch Logs = Lowest possible cost!**
 
 ## Prerequisites
 
@@ -33,12 +33,10 @@ Edit `bin/app.js` to customize:
 
 ```javascript
 config: {
-  monthlyRequestLimit: 10000,    // Max requests per month
-  rateLimit: 10,                 // Max requests per IP per minute
+  monthlyRequestLimit: 10000,    // Max requests per month (API Gateway enforced)
+  rateLimit: 10,                 // Max requests per second (API Gateway enforced)
   lambdaTimeout: 30,             // Lambda timeout in seconds
   lambdaMemory: 512,             // Lambda memory in MB
-  costAlertThreshold: 10,        // Email alert threshold ($)
-  alertEmail: 'your@email.com',  // Alert recipient
   allowedOrigins: [              // CORS origins
     'https://nexusnoscreenyoutube.netlify.app',
     'http://localhost:8000'
@@ -64,17 +62,10 @@ config: {
    cdk bootstrap
    ```
 
-4. **Set alert email**:
-   ```bash
-   export ALERT_EMAIL="your-email@example.com"
-   ```
-
-5. **Deploy**:
+4. **Deploy**:
    ```bash
    cdk deploy
    ```
-
-6. **Confirm email subscription**: Check your email for SNS subscription confirmation
 
 ## Usage
 
@@ -93,24 +84,24 @@ async function getAudioUrl(videoId) {
 ## Monitoring
 
 View usage and costs:
-- **CloudWatch**: https://console.aws.amazon.com/cloudwatch
+- **API Gateway Console**: View request metrics
+- **Lambda Console**: View invocation count and errors
 - **Cost Explorer**: https://console.aws.amazon.com/cost-management
-- **DynamoDB Console**: View request logs
 
 ## Throttling Behavior
 
-When limits are hit:
-- **Rate limit**: Returns 429 with `Retry-After` header
-- **Monthly limit**: Returns 429 until next month
-- **Graceful degradation**: Continues working within limits
+When limits are hit (enforced by API Gateway):
+- **Rate limit exceeded**: Returns 429 "Too Many Requests"
+- **Monthly quota exceeded**: Returns 429 until next month resets
+- **Automatic enforcement**: No code needed, API Gateway handles it
 
 ## Cost Protection
 
-1. **Hard monthly limit**: Stops at configured limit
-2. **CloudWatch alarms**: Email alerts before overspending
-3. **Short log retention**: 7 days to reduce storage costs
-4. **DynamoDB TTL**: Auto-cleanup of old records
-5. **Pay-per-request**: No idle costs
+1. **Minimal resources**: Only Lambda + API Gateway (no extras)
+2. **Hard monthly quota**: API Gateway stops requests at limit
+3. **Rate throttling**: Prevents burst usage
+4. **No log retention**: No CloudWatch Logs storage costs
+5. **Pay-per-request**: Zero cost when idle
 
 ## Adjusting Limits
 
@@ -143,21 +134,20 @@ cdk destroy
 - Or wait until next month
 
 **High costs**:
-- Check CloudWatch Logs retention
-- Review DynamoDB request patterns
-- Consider reducing `lambdaMemory`
+- Review API Gateway request count
+- Consider reducing `lambdaMemory` (256MB minimum)
+- Lower `monthlyRequestLimit`
 
 ## Security
 
 - CORS restricted to specified origins
-- Optional API key authentication
-- Rate limiting per IP
-- No sensitive data stored
-- CloudWatch audit logs
+- API Gateway rate limiting and quotas
+- No data storage (stateless)
+- Lambda runs in isolated environment
 
 ## Support
 
 For issues or questions, check:
-- CloudWatch Logs: `/aws/lambda/youtube-audio-extractor`
-- DynamoDB Table: `youtube-audio-requests`
-- API Gateway Logs: Check deployment stage
+- Lambda Console: Function metrics and errors
+- API Gateway Console: Request count and throttling
+- Cost Explorer: Daily/monthly costs
