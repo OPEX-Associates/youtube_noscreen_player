@@ -1,0 +1,8 @@
+cdk.out/
+node_modules/
+*.js
+!bin/*.js
+!lib/*.js
+!lambda/*.js
+*.d.ts
+.env

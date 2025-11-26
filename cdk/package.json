@@ -1,0 +1,21 @@
+{
+  "name": "youtube-audio-cdk",
+  "version": "1.0.0",
+  "description": "AWS CDK deployment for YouTube Audio Extraction",
+  "main": "lib/youtube-audio-stack.js",
+  "scripts": {
+    "build": "echo 'No build step needed'",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff",
+    "synth": "cdk synth"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.100.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.100.0"
+  }
+}
