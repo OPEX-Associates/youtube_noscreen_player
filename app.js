@@ -286,16 +286,16 @@ class YouTubeAudioPlayer {
     async getAudioUrl(videoId) {
         console.log('Extracting audio for video ID:', videoId);
         
-        // Use AWS Lambda + API Gateway
-        const apiEndpoint = 'https://0qiwd7ub78.execute-api.eu-west-1.amazonaws.com/prod/extract-audio';
+        // Use Netlify serverless function
+        const netlifyFunctionUrl = '/.netlify/functions/extract-audio';
         
         try {
-            console.log('Calling AWS Lambda function...');
+            console.log('Calling Netlify function...');
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 second timeout
             
-            const response = await fetch(`${apiEndpoint}?videoId=${videoId}`, {
+            const response = await fetch(`${netlifyFunctionUrl}?videoId=${videoId}`, {
                 headers: { 'Accept': 'application/json' },
                 signal: controller.signal
             });
